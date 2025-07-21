@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Lista de Citas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  </head>
+
+  <body class="container py-5 bg-light">
+
+    {% if current_user.is_authenticated %}
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+      <div class="d-flex align-items-center mb-2 mb-md-0">
+        <h2 class="mb-0 text-primary fw-bold">
+          <i class="fas fa-calendar-check me-2"></i> Citas Médicas
+        </h2>
+        <span class="ms-3 text-muted">Sesión activa: <strong>{{ current_user.username }}</strong></span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{{ url_for('main.logout') }}" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-sign-out-alt me-1"></i> Cerrar sesión
+        </a>
+        <a href="{{ url_for('main.agregar') }}" class="btn btn-success btn-sm">
+          <i class="fas fa-plus-circle me-1"></i> Agregar Nueva Cita
+        </a>
+        <a href="{{ url_for('main.exportar_excel') }}" class="btn btn-outline-success btn-sm">
+          <i class="fas fa-file-excel me-1"></i> Exportar a Excel
+        </a>
+      </div>
+    </div>
+    {% else %}
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+      <h2 class="mb-0 text-primary fw-bold">
+        <i class="fas fa-calendar-check me-2"></i> Citas Médicas
+      </h2>
+      <a href="{{ url_for('main.login') }}" class="btn btn-primary btn-sm">
+        <i class="fas fa-sign-in-alt me-1"></i> Iniciar sesión
+      </a>
+    </div>
+    {% endif %}
+
+    <!-- Buscador -->
+    <form method="GET" action="{{ url_for('main.index') }}" class="input-group mb-4">
+      <input
+        type="text"
+        name="busqueda"
+        class="form-control"
+        placeholder="Buscar por nombre o apellido"
+        value="{{ request.args.get('busqueda', '') }}"
+      />
+      <button class="btn btn-outline-primary" type="submit">
+        <i class="fas fa-search"></i> Buscar
+      </button>
+      {% if request.args.get('busqueda') %}
+        <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary">
+          <i class="fas fa-times"></i> Ver todas
+        </a>
+      {% endif %}
+    </form>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if citas %}
+      <div class="list-group">
+        {% for cita in citas %}
+          <div class="list-group-item shadow-sm mb-3 rounded d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="fw-semibold mb-1">{{ cita.nombre }} {{ cita.apellido }}</h5>
+              <p class="mb-1">
+                <strong>Teléfono:</strong> {{ cita.telefono or '—' }}<br />
+                <strong>Fecha:</strong> {{ cita.fecha.strftime('%d/%m/%Y') }}<br />
+                <strong>Especialidad:</strong> {{ cita.especialidad }}<br />
+                <strong>Estado:</strong>
+                <span class="badge
+                  {% if cita.estado.strip()|lower == 'pendiente' %} bg-warning text-dark
+                  {% elif cita.estado.strip()|lower == 'completada' %} bg-success
+                  {% elif cita.estado.strip()|lower == 'cancelada' %} bg-danger
+                  {% else %} bg-secondary
+                  {% endif %}
+                ">
+                  {{ cita.estado.capitalize() }}
+                </span>
+              </p>
+            </div>
+            <div class="d-flex flex-column align-items-end ms-3">
+              <a href="{{ url_for('main.editar', id=cita.id) }}" class="btn btn-warning btn-sm mb-2 w-100">
+                <i class="fas fa-edit me-1"></i> Editar
+              </a>
+              <button
+                type="button"
+                class="btn btn-danger btn-sm w-100 btn-eliminar"
+                data-id="{{ cita.id }}"
+                data-nombre="{{ cita.nombre }} {{ cita.apellido }}"
+              >
+                <i class="fas fa-trash-alt me-1"></i> Eliminar
+              </button>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-muted">No hay citas registradas.</p>
+    {% endif %}
+
+    <!-- Modal de confirmación -->
+    <div class="modal fade" id="confirmarEliminarModal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalLabel">Confirmar Eliminación</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <p id="mensajeConfirmacion">¿Estás seguro de que deseas eliminar esta cita?</p>
+          </div>
+          <div class="modal-footer">
+            <form id="formEliminar" method="POST">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-danger">Eliminar</button>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+  </body>
+</html>
